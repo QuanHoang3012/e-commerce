@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authorization.AuthorizationDeniedException;
+//import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 public abstract class BaseController {
@@ -35,10 +35,10 @@ public abstract class BaseController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(BaseResponse.failure(ex.getMessage(), HttpStatus.BAD_REQUEST.value()));
     }
 
-    @ExceptionHandler(AuthorizationDeniedException.class)
-    public ResponseEntity<BaseResponse<Object>> handleAuthorizationException(AuthorizationDeniedException ex){
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BaseResponse.failure(ex.getMessage(), HttpStatus.FORBIDDEN.value()));
-    }
+//    @ExceptionHandler(AuthorizationDeniedException.class)
+//    public ResponseEntity<BaseResponse<Object>> handleAuthorizationException(AuthorizationDeniedException ex){
+//        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BaseResponse.failure(ex.getMessage(), HttpStatus.FORBIDDEN.value()));
+//    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BaseResponse<Object>> handleException(Exception ex) {
