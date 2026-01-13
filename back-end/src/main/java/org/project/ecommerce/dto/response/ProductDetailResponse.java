@@ -13,7 +13,8 @@ public class ProductDetailResponse {
     private UUID id;
     private String name;
     private String description;
-    private BigDecimal basePrice;
+    private BigDecimal minPrice;
+    private BigDecimal maxPrice;
     private String categoryName;
     private List<String> images;
     private List<VariantDto> variants;
@@ -25,6 +26,7 @@ public class ProductDetailResponse {
         private String skuCode;
         private String size;
         private String color;
+        private BigDecimal price;
         private Integer stockQuantity;
     }
 }

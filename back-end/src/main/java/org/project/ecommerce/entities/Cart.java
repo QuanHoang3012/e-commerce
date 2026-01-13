@@ -18,8 +18,6 @@ import java.util.UUID;
 @Getter
 @Setter
 public class Cart extends BaseEntity {
-    @Column(name = "guest_token", unique = true)
-    private String guestToken;
 
     // Nếu khách login thì update vào đây
     @Column(name = "user_id")

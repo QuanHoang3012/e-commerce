@@ -33,8 +33,8 @@ public class Product extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "base_price")
-    private BigDecimal basePrice;
+    @Column(name = "min_price")
+    private BigDecimal minPrice;
 
     @ManyToOne
     @JoinColumn(name = "category_id")

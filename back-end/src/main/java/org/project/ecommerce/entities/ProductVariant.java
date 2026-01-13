@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "product_variants")
 @NoArgsConstructor
@@ -32,6 +34,9 @@ public class ProductVariant extends BaseEntity {
 
     private String size;
     private String color;
+
+    @Column(nullable = false)
+    private BigDecimal price;
 
     @Column(name = "stock_quantity", nullable = false)
     private Integer stockQuantity;
