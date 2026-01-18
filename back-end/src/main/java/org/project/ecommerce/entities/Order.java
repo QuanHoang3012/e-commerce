@@ -47,7 +47,7 @@ public class Order extends BaseEntity {
     private Integer version;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
-    private List<OrderItem> orderItems;
+    private List<OrderItem> items;
 
     @PrePersist
     protected void onCreate() {

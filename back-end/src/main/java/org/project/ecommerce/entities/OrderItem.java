@@ -28,4 +28,8 @@ public class OrderItem extends BaseEntity {
     // Lưu giá tại thời điểm mua (Tránh việc sau này giá sản phẩm gốc thay đổi)
     @Column(name = "price_at_purchase")
     private BigDecimal priceAtPurchase;
+    
+    // Tổng tiền (quantity * priceAtPurchase)
+    @Column(name = "subtotal")
+    private BigDecimal subtotal;
 }

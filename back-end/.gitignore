@@ -32,4 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 
+# Environment variables (contains sensitive data)
+.env
+
 /src/main/resources/application.properties

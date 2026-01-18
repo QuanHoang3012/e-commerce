@@ -1,6 +1,5 @@
 package org.project.ecommerce.mapper;
 
-import lombok.Builder;
 import org.project.ecommerce.dto.response.ProductDetailResponse;
 import org.project.ecommerce.dto.response.ProductListResponse;
 import org.project.ecommerce.entities.Product;

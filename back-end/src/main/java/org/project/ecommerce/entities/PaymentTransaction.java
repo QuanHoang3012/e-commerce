@@ -6,8 +6,6 @@ import lombok.*;
 import org.project.ecommerce.constant.PaymentMethod;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "payment_transactions")

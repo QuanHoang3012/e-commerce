@@ -14,6 +14,7 @@ import org.project.ecommerce.repository.CartItemRepository;
 import org.project.ecommerce.repository.CartRepository;
 import org.project.ecommerce.repository.ProductVariantRepository;
 import org.project.ecommerce.service.CartService;
+import org.project.ecommerce.service.InventoryReservationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductVariantRepository productVariantRepository;
     private final CartMapper cartMapper;
+    private final InventoryReservationService reservationService;
 
     @Override
     public CartResponse getCart(UUID cartId) {
@@ -106,11 +108,11 @@ public class CartServiceImpl implements CartService {
 
     @Override
     @Transactional
-    public CartResponse updateCartItem(UUID cartId, UUID cartItemId, UpdateCartRequest request) {
+    public CartResponse updateCartItem(UUID cartId,  UpdateCartRequest request) {
         Cart cart = cartRepository.findById(cartId)
                 .orElseThrow(() -> new CustomException("Giỏ hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        CartItem item = cartItemRepository.findById(cartItemId)
+        CartItem item = cartItemRepository.findById(request.getItemId())
                 .orElseThrow(
                         () -> new CustomException("Món hàng không tồn tại trong giỏ", HttpStatus.NOT_FOUND.value()));
 
@@ -123,11 +125,15 @@ public class CartServiceImpl implements CartService {
         if (request.getQuantity() <= 0) {
             cartItemRepository.delete(item); // Nếu = 0 thì xóa luôn
         } else {
-            // Check tồn kho
-            if (item.getVariant().getStockQuantity() < request.getQuantity()) {
-                throw new CustomException("Kho chỉ còn " + item.getVariant().getStockQuantity(),
+            // Check AVAILABLE STOCK (Physical - Reserved)
+            int availableStock = reservationService.getAvailableStock(item.getVariant().getId());
+
+            if (availableStock < request.getQuantity()) {
+                throw new CustomException(
+                        "Chỉ còn " + availableStock + " sản phẩm có thể đặt",
                         HttpStatus.BAD_REQUEST.value());
             }
+
             item.setQuantity(request.getQuantity());
             cartItemRepository.save(item);
         }

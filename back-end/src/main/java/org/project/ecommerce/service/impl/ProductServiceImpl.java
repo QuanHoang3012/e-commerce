@@ -42,12 +42,10 @@ public class ProductServiceImpl implements ProductService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("category").get("slug"), categorySlug));
         }
 
-        // Lọc theo Khoảng giá (Min) -> SỬA: Dùng "minPrice" thay vì "basePrice"
         if (minPrice != null) {
             spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("minPrice"), minPrice));
         }
 
-        // Lọc theo Khoảng giá (Max) -> SỬA: Dùng "minPrice" thay vì "basePrice"
         if (maxPrice != null) {
             spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("minPrice"), maxPrice));
         }

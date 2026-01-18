@@ -1,6 +1,8 @@
 package org.project.ecommerce.controller;
 
-import lombok.RequiredArgsConstructor;
+import java.math.BigDecimal;
+import java.util.UUID;
+
 import org.project.ecommerce.base.BaseController;
 import org.project.ecommerce.base.BaseResponse;
 import org.project.ecommerce.dto.PageDTO;
@@ -10,14 +12,19 @@ import org.project.ecommerce.service.ProductService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
-import java.util.UUID;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
+@Tag(name = "Product", description = "API quản lý sản phẩm - Danh sách và chi tiết sản phẩm")
 public class ProductController extends BaseController {
 
     private final ProductService productService;

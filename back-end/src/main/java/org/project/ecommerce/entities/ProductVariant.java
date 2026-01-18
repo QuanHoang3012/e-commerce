@@ -8,7 +8,6 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -40,7 +39,4 @@ public class ProductVariant extends BaseEntity {
 
     @Column(name = "stock_quantity", nullable = false)
     private Integer stockQuantity;
-
-    @Version
-    private Integer version;
 }

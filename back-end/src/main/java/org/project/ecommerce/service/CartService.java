@@ -16,7 +16,7 @@ public interface CartService {
     CartResponse addToCart(UUID cartId, AddToCartRequest request);
 
     // Cập nhật số lượng
-    CartResponse updateCartItem(UUID cartId,UUID cartItemId, UpdateCartRequest request);
+    CartResponse updateCartItem(UUID cartId, UpdateCartRequest request);
 
     // Xóa món khỏi giỏ
     CartResponse removeCartItem(UUID cartId, UUID cartItemId);
