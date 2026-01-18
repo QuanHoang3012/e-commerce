@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.project.ecommerce.constant.OrderStatus;
+import org.project.ecommerce.constant.PaymentMethod;
 import org.project.ecommerce.dto.PageDTO;
 import org.project.ecommerce.dto.response.OrderListResponse;
 import org.project.ecommerce.dto.response.OrderTrackingResponse;
@@ -187,10 +188,19 @@ public class OrderServiceImpl implements OrderService {
         Instant createdAt = order.getCreatedAt();
         Instant updatedAt = order.getUpdatedAt();
 
+        // Build paid step - chỉ áp dụng cho BANK_TRANSFER
+        TimelineStep paidStep;
+        if (order.getPaymentMethod() == PaymentMethod.BANK_TRANSFER) {
+            paidStep = buildTimelineStep(OrderStatus.PAID, currentStatus, updatedAt, "Thanh toán thành công");
+        } else {
+            // COD không có bước thanh toán trước
+            paidStep = null;
+        }
+
         return OrderTimeline.builder()
                 .pending(buildTimelineStep(OrderStatus.PENDING, currentStatus, createdAt, "Đơn hàng đã được tạo"))
                 .confirmed(buildTimelineStep(OrderStatus.CONFIRMED, currentStatus, updatedAt, "Đơn hàng đã được xác nhận"))
-                .paid(buildTimelineStep(OrderStatus.PAID, currentStatus, updatedAt, "Thanh toán thành công"))
+                .paid(paidStep)
                 .processing(buildTimelineStep(OrderStatus.PROCESSING, currentStatus, updatedAt, "Đang chuẩn bị hàng"))
                 .shipping(buildTimelineStep(OrderStatus.SHIPPING, currentStatus, updatedAt, "Đang giao hàng"))
                 .delivered(buildTimelineStep(OrderStatus.DELIVERED, currentStatus, updatedAt, "Đã giao hàng"))
