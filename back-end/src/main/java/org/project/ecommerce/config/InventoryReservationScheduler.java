@@ -1,17 +1,16 @@
 package org.project.ecommerce.config;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.project.ecommerce.service.InventoryReservationService;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Scheduled tasks để quản lý Inventory Reservations
  */
 @Component
-@EnableScheduling
 @RequiredArgsConstructor
 @Slf4j
 public class InventoryReservationScheduler {
@@ -20,9 +19,9 @@ public class InventoryReservationScheduler {
 
     /**
      * Tự động release các reservations đã HẾT HẠN (> 15 phút)
-     * Chạy mỗi 2 phút
+     * Chạy mỗi 1 phút
      */
-    @Scheduled(fixedRate = 120000) // 2 phút = 120,000 ms
+    @Scheduled(fixedRate = 60000) // 1 phút = 60,000 ms
     public void releaseExpiredReservations() {
         try {
             int released = reservationService.releaseExpiredReservations();
@@ -41,8 +40,8 @@ public class InventoryReservationScheduler {
     @Scheduled(cron = "0 0 3 * * ?")
     public void cleanupOldReservations() {
         try {
-            // TODO: Implement cleanup logic in service
-            log.info("[SCHEDULER] Cleanup old reservations executed");
+            reservationService.cleanupOldReservations();
+            log.info("[SCHEDULER] Cleanup old reservations completed");
         } catch (Exception e) {
             log.error("[SCHEDULER] Error cleaning up old reservations", e);
         }

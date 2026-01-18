@@ -1,9 +1,9 @@
 package org.project.ecommerce.service;
 
-import org.project.ecommerce.entities.InventoryReservation;
-
 import java.util.List;
 import java.util.UUID;
+
+import org.project.ecommerce.entities.InventoryReservation;
 
 /**
  * Service quản lý việc GIỮ HÀNG (Inventory Reservation)
@@ -67,6 +67,14 @@ public interface InventoryReservationService {
      * @return Số lượng reservations đã được release
      */
     int releaseExpiredReservations();
+
+    /**
+     * Xóa các reservation đã EXPIRED/COMPLETED cũ (> 24 giờ)
+     * Gọi bởi Scheduled Task để dọn dẹp database
+     *
+     * @return Số lượng records đã xóa
+     */
+    int cleanupOldReservations();
 
     /**
      * DTO cho bulk reservation

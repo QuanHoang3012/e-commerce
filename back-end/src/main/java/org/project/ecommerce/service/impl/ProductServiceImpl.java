@@ -1,6 +1,8 @@
 package org.project.ecommerce.service.impl;
 
-import lombok.RequiredArgsConstructor;
+import java.math.BigDecimal;
+import java.util.UUID;
+
 import org.project.ecommerce.dto.PageDTO;
 import org.project.ecommerce.dto.response.ProductDetailResponse;
 import org.project.ecommerce.dto.response.ProductListResponse;
@@ -11,15 +13,13 @@ import org.project.ecommerce.mapper.ProductMapper;
 import org.project.ecommerce.repository.ProductRepository;
 import org.project.ecommerce.service.ProductService;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-
-import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor

@@ -6,6 +6,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.project.ecommerce.constant.OrderStatus;
+import org.project.ecommerce.dto.PageDTO;
+import org.project.ecommerce.dto.response.OrderListResponse;
 import org.project.ecommerce.dto.response.OrderTrackingResponse;
 import org.project.ecommerce.dto.response.OrderTrackingResponse.OrderItemResponse;
 import org.project.ecommerce.dto.response.OrderTrackingResponse.OrderTimeline;
@@ -15,6 +17,8 @@ import org.project.ecommerce.entities.OrderItem;
 import org.project.ecommerce.exception.CustomException;
 import org.project.ecommerce.repository.OrderRepository;
 import org.project.ecommerce.service.OrderService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +42,82 @@ public class OrderServiceImpl implements OrderService {
                         HttpStatus.NOT_FOUND.value()));
 
         return buildOrderTrackingResponse(order);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageDTO<OrderListResponse> getOrders(OrderStatus status, Pageable pageable) {
+        Page<Order> orderPage;
+        
+        if (status != null) {
+            // Filter theo status
+            orderPage = orderRepository.findByStatus(status, pageable);
+        } else {
+            // Lấy tất cả
+            orderPage = orderRepository.findAll(pageable);
+        }
+
+        // Convert sang OrderListResponse
+        Page<OrderListResponse> dtoPage = orderPage.map(this::buildOrderListResponse);
+
+        return PageDTO.from(dtoPage);
+    }
+
+    @Override
+    @Transactional
+    public OrderTrackingResponse updateOrderStatus(UUID orderId, OrderStatus newStatus, String note) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException(
+                        "Không tìm thấy đơn hàng", 
+                        HttpStatus.NOT_FOUND.value()));
+
+        OrderStatus oldStatus = order.getStatus();
+
+        // Validate status transition (có thể bỏ qua nếu muốn linh hoạt)
+        validateStatusTransition(oldStatus, newStatus);
+
+        // Update status
+        order.setStatus(newStatus);
+        orderRepository.save(order);
+
+        log.info("Order {} status updated: {} → {} by warehouse staff. Note: {}", 
+                orderId, oldStatus, newStatus, note);
+
+        return buildOrderTrackingResponse(order);
+    }
+
+    /**
+     * Build response cho list orders (compact version)
+     */
+    private OrderListResponse buildOrderListResponse(Order order) {
+        return OrderListResponse.builder()
+                .orderId(order.getId())
+                .customerName(order.getCustomerName())
+                .customerPhone(order.getCustomerPhone())
+                .shippingAddress(order.getShippingAddress())
+                .totalAmount(order.getTotalAmount())
+                .paymentMethod(order.getPaymentMethod())
+                .status(order.getStatus())
+                .orderDate(order.getCreatedAt())
+                .lastUpdated(order.getUpdatedAt())
+                .totalItems(order.getItems() != null ? order.getItems().size() : 0)
+                .build();
+    }
+
+    /**
+     * Validate xem có được phép chuyển status không
+     * Có thể customize rules tùy business logic
+     */
+    private void validateStatusTransition(OrderStatus from, OrderStatus to) {
+        // Ví dụ: Không cho chuyển từ COMPLETED về PENDING
+        if (from == OrderStatus.COMPLETED && to != OrderStatus.CANCELLED) {
+            throw new CustomException(
+                    "Không thể thay đổi đơn hàng đã hoàn tất", 
+                    HttpStatus.BAD_REQUEST.value());
+        }
+
+        // Có thể thêm nhiều rules khác tùy nghiệp vụ
+        // VD: Đơn đã hủy không được phục hồi, etc.
     }
 
     /**

@@ -29,7 +29,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     private final ProductVariantRepository productVariantRepository;
 
     // Thời gian giữ hàng: 15 phút
-    private static final int RESERVATION_EXPIRY_MINUTES = 15;
+    private static final int RESERVATION_EXPIRY_MINUTES = 6;
 
     @Override
     @Transactional
@@ -131,7 +131,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 .findByCartIdAndStatus(cartId, ReservationStatus.ACTIVE);
 
         if (reservations.isEmpty()) {
-            throw new CustomException("Không tìm thấy reservation để hoàn tất", HttpStatus.NOT_FOUND.value());
+            throw new CustomException("Đơn hàng đã quá thời gian checkout", HttpStatus.NOT_FOUND.value());
         }
 
         // Update status → COMPLETED và trừ stock thật sự
@@ -188,5 +188,18 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         }
 
         return count;
+    }
+
+    @Override
+    @Transactional
+    public int cleanupOldReservations() {
+        // Xóa các reservation đã EXPIRED/COMPLETED và cũ hơn 24 giờ
+        Instant cleanupTime = Instant.now().minus(24, ChronoUnit.HOURS);
+        
+        reservationRepository.cleanupOldReservations(cleanupTime);
+        
+        log.info("Cleaned up old reservations (EXPIRED/COMPLETED older than 24 hours)");
+        
+        return 0;
     }
 }
