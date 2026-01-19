@@ -11,6 +11,8 @@
 3. [Chi Tiết Các Bảng](#3-chi-tiết-các-bảng)
 4. [Giải Thích Thiết Kế](#4-giải-thích-thiết-kế)
 5. [Ràng Buộc và Index](#5-ràng-buộc-và-index)
+6. [Danh Sách API Endpoints](#6-danh-sách-api-endpoints)
+7. [Tổng Kết](#7-tổng-kết)
 
 ---
 
@@ -958,7 +960,508 @@ CREATE INDEX idx_category_slug ON category(slug);
 
 ---
 
-## 6. TỔNG KẾT
+## 6. DANH SÁCH API ENDPOINTS
+
+Hệ thống cung cấp các API RESTful được phân chia theo 5 nhóm chức năng chính.
+
+---
+
+### 6.1. Product API - Quản Lý Sản Phẩm
+
+#### 6.1.1. Lấy Danh Sách Sản Phẩm
+
+- **Method:** `GET`
+- **URL:** `/api/v1/products`
+- **Description:** Lấy danh sách sản phẩm với hỗ trợ phân trang, lọc theo category và khoảng giá, sắp xếp theo nhiều tiêu chí
+- **Query Parameters:**
+  - `page` (integer, default: 1) - Số trang (bắt đầu từ 1)
+  - `size` (integer, default: 12) - Số lượng sản phẩm mỗi trang
+  - `category` (string, optional) - Slug của category để lọc
+  - `minPrice` (decimal, optional) - Giá tối thiểu
+  - `maxPrice` (decimal, optional) - Giá tối đa
+  - `sort` (string, default: "createdAt,desc") - Sắp xếp theo trường và hướng (ví dụ: "basePrice,asc", "createdAt,desc")
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "content": [
+        {
+          "id": "uuid",
+          "name": "Áo Hoodie Basic",
+          "minPrice": 250000,
+          "categoryName": "Áo Hoodie",
+          "categorySlug": "ao-hoodie",
+          "thumbnail": "https://..."
+        }
+      ],
+      "pageNo": 1,
+      "pageSize": 12,
+      "totalElements": 50,
+      "totalPages": 5,
+      "last": false
+    },
+    "message": null
+  }
+  ```
+
+#### 6.1.2. Xem Chi Tiết Sản Phẩm
+
+- **Method:** `GET`
+- **URL:** `/api/v1/products/{id}`
+- **Description:** Lấy thông tin chi tiết một sản phẩm bao gồm tất cả variants (size, màu), hình ảnh và thông tin tồn kho
+- **Path Parameters:**
+  - `id` (UUID) - ID của sản phẩm
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "name": "Áo Hoodie Basic",
+      "description": "Áo hoodie chất liệu cotton...",
+      "minPrice": 250000,
+      "maxPrice": 350000,
+      "categoryName": "Áo Hoodie",
+      "images": [
+        "https://...",
+        "https://..."
+      ],
+      "variants": [
+        {
+          "id": "uuid",
+          "skuCode": "HOD-BLK-M",
+          "size": "M",
+          "color": "Đen",
+          "price": 250000,
+          "stockQuantity": 50
+        }
+      ]
+    },
+    "message": null
+  }
+  ```
+
+---
+
+### 6.2. Cart API - Quản Lý Giỏ Hàng
+
+#### 6.2.1. Xem Giỏ Hàng
+
+- **Method:** `GET`
+- **URL:** `/api/v1/cart`
+- **Description:** Lấy thông tin giỏ hàng hiện tại của khách, tự động tạo giỏ mới nếu chưa có
+- **Headers/Cookies:**
+  - Cookie `CART_ID` (UUID) - Tự động gửi kèm bởi browser
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "totalAmount": 750000,
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "uuid",
+          "variantId": "uuid",
+          "productName": "Áo Hoodie Basic",
+          "skuCode": "HOD-BLK-M",
+          "size": "M",
+          "color": "Đen",
+          "thumbnail": "https://...",
+          "unitPrice": 250000,
+          "quantity": 2,
+          "subTotal": 500000,
+          "maxStock": 50
+        }
+      ]
+    },
+    "message": null
+  }
+  ```
+
+#### 6.2.2. Thêm Sản Phẩm Vào Giỏ
+
+- **Method:** `POST`
+- **URL:** `/api/v1/cart/items`
+- **Description:** Thêm một variant sản phẩm vào giỏ hàng, tự động tạo giỏ mới nếu khách chưa có
+- **Headers/Cookies:**
+  - Cookie `CART_ID` (UUID, optional) - Tự động gửi nếu đã có giỏ
+- **Request Body:**
+  ```json
+  {
+    "variantId": "uuid",
+    "quantity": 2
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "totalAmount": 750000,
+      "totalItems": 3,
+      "items": [...]
+    },
+    "message": null
+  }
+  ```
+
+#### 6.2.3. Cập Nhật Số Lượng Sản Phẩm
+
+- **Method:** `PUT`
+- **URL:** `/api/v1/cart/items/{itemId}`
+- **Description:** Thay đổi số lượng của một item trong giỏ hàng
+- **Headers/Cookies:**
+  - Cookie `CART_ID` (UUID, required)
+- **Path Parameters:**
+  - `itemId` (UUID) - ID của cart item cần cập nhật
+- **Request Body:**
+  ```json
+  {
+    "itemId": "uuid",
+    "quantity": 5
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "totalAmount": 1250000,
+      "totalItems": 5,
+      "items": [...]
+    },
+    "message": null
+  }
+  ```
+
+#### 6.2.4. Xóa Sản Phẩm Khỏi Giỏ
+
+- **Method:** `DELETE`
+- **URL:** `/api/v1/cart/items/{itemId}`
+- **Description:** Xóa một item khỏi giỏ hàng
+- **Headers/Cookies:**
+  - Cookie `CART_ID` (UUID, required)
+- **Path Parameters:**
+  - `itemId` (UUID) - ID của cart item cần xóa
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "totalAmount": 500000,
+      "totalItems": 2,
+      "items": [...]
+    },
+    "message": null
+  }
+  ```
+
+---
+
+### 6.3. Checkout API - Thanh Toán
+
+#### 6.3.1. Khởi Tạo Checkout Session
+
+- **Method:** `POST`
+- **URL:** `/api/checkout/initiate`
+- **Description:** Tạo session checkout và reserve inventory trong 15 phút, ngăn chặn race condition khi nhiều khách mua cùng lúc
+- **Query Parameters:**
+  - `cartId` (UUID, required) - ID của giỏ hàng cần thanh toán
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "sessionId": "ABC-123-XYZ",
+      "reservedUntil": "2026-01-20T10:15:00Z",
+      "totalItems": 3,
+      "totalAmount": 750000,
+      "orderId": null,
+      "message": null
+    },
+    "message": null
+  }
+  ```
+
+#### 6.3.2. Xác Nhận Thanh Toán
+
+- **Method:** `POST`
+- **URL:** `/api/checkout/confirm`
+- **Description:** Hoàn tất checkout, tạo đơn hàng, trừ tồn kho và chuyển reservation thành COMPLETED
+- **Query Parameters:**
+  - `sessionId` (string, required) - Session ID từ bước initiate
+- **Request Body:**
+  ```json
+  {
+    "customerName": "Nguyễn Văn A",
+    "customerPhone": "0912345678",
+    "customerEmail": "customer@example.com",
+    "shippingAddress": "123 Đường ABC, Quận 1, TP.HCM",
+    "paymentMethod": "BANK_TRANSFER",
+    "note": "Giao giờ hành chính"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "sessionId": "ABC-123-XYZ",
+      "reservedUntil": null,
+      "totalItems": null,
+      "totalAmount": 750000,
+      "orderId": "uuid",
+      "message": "Đặt hàng thành công!"
+    },
+    "message": null
+  }
+  ```
+
+#### 6.3.3. Hủy Checkout
+
+- **Method:** `POST`
+- **URL:** `/api/checkout/cancel`
+- **Description:** Hủy session checkout và release inventory đã reserve
+- **Query Parameters:**
+  - `sessionId` (string, required) - Session ID cần hủy
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": null,
+    "message": null
+  }
+  ```
+
+---
+
+### 6.4. Order API - Quản Lý Đơn Hàng
+
+#### 6.4.1. Lấy Danh Sách Đơn Hàng (Admin)
+
+- **Method:** `GET`
+- **URL:** `/api/v1/orders`
+- **Description:** Lấy danh sách đơn hàng cho warehouse staff/admin với phân trang và lọc theo trạng thái
+- **Headers:**
+  - `X-Admin-Key` (string, required) - API key để xác thực quyền admin
+- **Query Parameters:**
+  - `status` (enum, optional) - Lọc theo trạng thái đơn hàng (PENDING, CONFIRMED, PAID, PROCESSING, SHIPPING, DELIVERED, COMPLETED, CANCELLED)
+  - `page` (integer, default: 1) - Số trang
+  - `size` (integer, default: 20) - Số lượng đơn hàng mỗi trang
+  - `sort` (string, default: "createdAt,desc") - Sắp xếp
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "content": [
+        {
+          "orderId": "uuid",
+          "customerName": "Nguyễn Văn A",
+          "customerPhone": "0912345678",
+          "shippingAddress": "123 Đường ABC...",
+          "totalAmount": 750000,
+          "paymentMethod": "BANK_TRANSFER",
+          "status": "PENDING",
+          "orderDate": "2026-01-20T10:00:00Z",
+          "lastUpdated": "2026-01-20T10:00:00Z",
+          "totalItems": 3
+        }
+      ],
+      "pageNo": 1,
+      "pageSize": 20,
+      "totalElements": 100,
+      "totalPages": 5,
+      "last": false
+    },
+    "message": null
+  }
+  ```
+
+#### 6.4.2. Tracking Đơn Hàng (Public)
+
+- **Method:** `GET`
+- **URL:** `/api/v1/orders/{orderId}`
+- **Description:** Tra cứu trạng thái và timeline của đơn hàng, không cần xác thực (public endpoint)
+- **Path Parameters:**
+  - `orderId` (UUID) - ID của đơn hàng
+- **Request:** Không có body
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "orderId": "uuid",
+      "trackingNumber": "ORD-20260120-ABC123",
+      "customerName": "Nguyễn Văn A",
+      "customerPhone": "0912345678",
+      "customerEmail": "customer@example.com",
+      "shippingAddress": "123 Đường ABC...",
+      "totalAmount": 750000,
+      "paymentMethod": "BANK_TRANSFER",
+      "status": "PROCESSING",
+      "orderDate": "2026-01-20T10:00:00Z",
+      "lastUpdated": "2026-01-20T11:30:00Z",
+      "items": [
+        {
+          "productName": "Áo Hoodie Basic",
+          "variantInfo": "M - Đen",
+          "skuCode": "HOD-BLK-M",
+          "quantity": 2,
+          "price": 250000,
+          "subtotal": 500000
+        }
+      ],
+      "timeline": {
+        "pending": {
+          "completed": true,
+          "timestamp": "2026-01-20T10:00:00Z",
+          "note": "Đơn hàng đã được tạo"
+        },
+        "confirmed": {
+          "completed": true,
+          "timestamp": "2026-01-20T10:05:00Z",
+          "note": null
+        },
+        "paid": {
+          "completed": true,
+          "timestamp": "2026-01-20T10:30:00Z",
+          "note": "Đã nhận thanh toán"
+        },
+        "processing": {
+          "completed": true,
+          "timestamp": "2026-01-20T11:30:00Z",
+          "note": "Đang đóng gói"
+        },
+        "shipping": {
+          "completed": false,
+          "timestamp": null,
+          "note": null
+        },
+        "delivered": {
+          "completed": false,
+          "timestamp": null,
+          "note": null
+        },
+        "completed": {
+          "completed": false,
+          "timestamp": null,
+          "note": null
+        }
+      }
+    },
+    "message": null
+  }
+  ```
+
+#### 6.4.3. Cập Nhật Trạng Thái Đơn Hàng (Admin)
+
+- **Method:** `PUT`
+- **URL:** `/api/v1/orders/{orderId}/status`
+- **Description:** Thay đổi trạng thái đơn hàng (dành cho warehouse staff)
+- **Headers:**
+  - `X-Admin-Key` (string, required) - API key để xác thực quyền admin
+- **Path Parameters:**
+  - `orderId` (UUID) - ID của đơn hàng
+- **Request Body:**
+  ```json
+  {
+    "status": "SHIPPING",
+    "note": "Đã giao cho shipper Viettel Post"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "orderId": "uuid",
+      "trackingNumber": "ORD-20260120-ABC123",
+      "status": "SHIPPING",
+      "timeline": {...}
+    },
+    "message": null
+  }
+  ```
+
+---
+
+### 6.5. Webhook API - Nhận Callback Thanh Toán
+
+#### 6.5.1. SePay Webhook
+
+- **Method:** `POST`
+- **URL:** `/api/webhooks/sepay`
+- **Description:** Endpoint nhận webhook từ cổng thanh toán SePay khi khách chuyển khoản thành công, tự động cập nhật trạng thái đơn hàng
+- **Headers:**
+  - `Content-Type: application/json`
+- **Request Body:**
+  ```json
+  {
+    "transactionId": "TX20260120123456",
+    "amount": 750000,
+    "content": "ORD-20260120-ABC123",
+    "timestamp": "2026-01-20T10:30:00Z",
+    "bankCode": "MB",
+    "senderName": "NGUYEN VAN A",
+    "senderAccount": "0912345678",
+    "signature": "base64-encoded-hmac-sha256"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": null,
+    "message": "Webhook processed successfully"
+  }
+  ```
+
+---
+
+### 6.6. Tóm Tắt API Endpoints
+
+**Tổng số API:** 13 endpoints
+
+**Phân loại theo phương thức:**
+- GET: 4 endpoints
+- POST: 6 endpoints
+- PUT: 2 endpoints
+- DELETE: 1 endpoint
+
+**Phân loại theo quyền truy cập:**
+- Public (không cần auth): 8 endpoints
+- Admin only (yêu cầu X-Admin-Key): 3 endpoints
+- Cookie-based (CART_ID): 4 endpoints
+- Webhook (signature verification): 1 endpoint
+
+**Base URL:** `http://localhost:8080`
+
+**Response Format:** Tất cả response đều wrap trong BaseResponse:
+```json
+{
+  "success": true/false,
+  "data": {...},
+  "message": "error message nếu có"
+}
+```
+
+---
+
+## 7. TỔNG KẾT
 
 ### Điểm Mạnh Của Thiết Kế
 
