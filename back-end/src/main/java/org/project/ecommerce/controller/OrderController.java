@@ -9,6 +9,7 @@ import org.project.ecommerce.dto.PageDTO;
 import org.project.ecommerce.dto.request.UpdateOrderStatusRequest;
 import org.project.ecommerce.dto.response.OrderListResponse;
 import org.project.ecommerce.dto.response.OrderTrackingResponse;
+import org.project.ecommerce.config.authentication.RequireApiKey;
 import org.project.ecommerce.service.OrderService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,7 +37,9 @@ public class OrderController extends BaseController {
     /**
      * Lấy danh sách đơn hàng (dành cho warehouse staff)
      * GET /api/v1/orders?status=PENDING&page=1&size=20&sort=createdAt,desc
+     * Yêu cầu: Header X-Admin-Key
      */
+    @RequireApiKey
     @GetMapping
     public BaseResponse<PageDTO<OrderListResponse>> getOrders(
             @RequestParam(required = false) OrderStatus status,
@@ -63,9 +66,9 @@ public class OrderController extends BaseController {
 
     /**
      * Đổi trạng thái đơn hàng (dành cho warehouse staff)
-     * PUT /api/v1/orders/{orderId}/status
-     * Body: { "status": "SHIPPING", "note": "Đã giao cho shipper ABC" }
+     * Yêu cầu: Header X-Admin-Key
      */
+    @RequireApiKey
     @PutMapping("/{orderId}/status")
     public BaseResponse<OrderTrackingResponse> updateOrderStatus(
             @PathVariable UUID orderId,
