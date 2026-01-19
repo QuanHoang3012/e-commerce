@@ -227,6 +227,7 @@ http://localhost:8080/swagger-ui/index.html
 ### **Danh sách API đầy đủ:**
 
 #### **1. Product APIs (Sản phẩm)**
+
 | Endpoint | Method | Mô tả | Auth |
 |----------|--------|-------|------|
 | `/api/v1/products` | GET | Lấy danh sách sản phẩm (hỗ trợ filter, phân trang, sort) | ❌ |
@@ -241,6 +242,7 @@ http://localhost:8080/swagger-ui/index.html
 - `sort` - Sắp xếp (ví dụ: `createdAt,desc` hoặc `basePrice,asc`)
 
 #### **2. Cart APIs (Giỏ hàng)**
+
 | Endpoint | Method | Mô tả | Auth |
 |----------|--------|-------|------|
 | `/api/v1/cart` | GET | Xem giỏ hàng hiện tại | ❌ |
@@ -251,6 +253,7 @@ http://localhost:8080/swagger-ui/index.html
 **Lưu ý:** Cart sử dụng Cookie `CART_ID` để lưu trữ, không cần authentication.
 
 #### **3. Checkout APIs (Thanh toán)**
+
 | Endpoint | Method | Mô tả | Auth |
 |----------|--------|-------|------|
 | `/api/checkout/initiate` | POST | Bước 1: Khởi tạo checkout (reserve inventory) | ❌ |
@@ -261,6 +264,7 @@ http://localhost:8080/swagger-ui/index.html
 - `initiate`: `?cartId={UUID}`
 - `confirm`: `?sessionId={sessionId}`
 - `cancel`: `?sessionId={sessionId}`
+
 
 #### **4. Order APIs (Đơn hàng)**
 | Endpoint | Method | Mô tả | Auth |
@@ -274,6 +278,7 @@ http://localhost:8080/swagger-ui/index.html
 - `page` - Số trang (default: 1)
 - `size` - Số items/trang (default: 20)
 - `sort` - Sắp xếp (ví dụ: `createdAt,desc`)
+
 
 #### **5. Webhook APIs (Payment callback)**
 | Endpoint | Method | Mô tả | Auth |
