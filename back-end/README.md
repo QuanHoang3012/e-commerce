@@ -228,64 +228,81 @@ http://localhost:8080/swagger-ui/index.html
 
 #### **1. Product APIs (Sản phẩm)**
 
-| Endpoint | Method | Mô tả | Auth |
-|----------|--------|-------|------|
-| `/api/v1/products` | GET | Lấy danh sách sản phẩm (hỗ trợ filter, phân trang, sort) | ❌ |
-| `/api/v1/products/{id}` | GET | Chi tiết sản phẩm với SKU, size, màu | ❌ |
+**GET** `/api/v1/products` - Lấy danh sách sản phẩm
+- **Mô tả:** Hỗ trợ filter, phân trang, sort
+- **Auth:** ❌ Public
+- **Query params:**
+  - `page` - Số trang (default: 1)
+  - `size` - Số items/trang (default: 12)
+  - `category` - Lọc theo category slug
+  - `minPrice` - Giá tối thiểu
+  - `maxPrice` - Giá tối đa
+  - `sort` - Sắp xếp (ví dụ: `createdAt,desc` hoặc `basePrice,asc`)
 
-**Query params cho GET /api/v1/products:**
-- `page` - Số trang (default: 1)
-- `size` - Số items/trang (default: 12)
-- `category` - Lọc theo category slug
-- `minPrice` - Giá tối thiểu
-- `maxPrice` - Giá tối đa
-- `sort` - Sắp xếp (ví dụ: `createdAt,desc` hoặc `basePrice,asc`)
+**GET** `/api/v1/products/{id}` - Chi tiết sản phẩm
+- **Mô tả:** Chi tiết sản phẩm với SKU, size, màu
+- **Auth:** ❌ Public
+
+---
 
 #### **2. Cart APIs (Giỏ hàng)**
 
-| Endpoint | Method | Mô tả | Auth |
-|----------|--------|-------|------|
-| `/api/v1/cart` | GET | Xem giỏ hàng hiện tại | ❌ |
-| `/api/v1/cart/items` | POST | Thêm sản phẩm vào giỏ | ❌ |
-| `/api/v1/cart/items/{itemId}` | PUT | Cập nhật số lượng sản phẩm | ❌ |
-| `/api/v1/cart/items/{itemId}` | DELETE | Xóa sản phẩm khỏi giỏ | ❌ |
+> **Lưu ý:** Cart sử dụng Cookie `CART_ID` để lưu trữ, không cần authentication.
 
-**Lưu ý:** Cart sử dụng Cookie `CART_ID` để lưu trữ, không cần authentication.
+**GET** `/api/v1/cart` - Xem giỏ hàng hiện tại
+- **Auth:** ❌ Public
+
+**POST** `/api/v1/cart/items` - Thêm sản phẩm vào giỏ
+- **Auth:** ❌ Public
+
+**PUT** `/api/v1/cart/items/{itemId}` - Cập nhật số lượng sản phẩm
+- **Auth:** ❌ Public
+
+**DELETE** `/api/v1/cart/items/{itemId}` - Xóa sản phẩm khỏi giỏ
+- **Auth:** ❌ Public
+
+---
 
 #### **3. Checkout APIs (Thanh toán)**
 
-| Endpoint | Method | Mô tả | Auth |
-|----------|--------|-------|------|
-| `/api/checkout/initiate` | POST | Bước 1: Khởi tạo checkout (reserve inventory) | ❌ |
-| `/api/checkout/confirm` | POST | Bước 2: Xác nhận và tạo đơn hàng | ❌ |
-| `/api/checkout/cancel` | POST | Hủy checkout session | ❌ |
+**POST** `/api/checkout/initiate?cartId={UUID}` - Bước 1: Khởi tạo checkout
+- **Mô tả:** Reserve inventory, giữ hàng trong 15 phút
+- **Auth:** ❌ Public
 
-**Query params:**
-- `initiate`: `?cartId={UUID}`
-- `confirm`: `?sessionId={sessionId}`
-- `cancel`: `?sessionId={sessionId}`
+**POST** `/api/checkout/confirm?sessionId={sessionId}` - Bước 2: Xác nhận và tạo đơn hàng
+- **Mô tả:** Complete reservation, tạo Order, trừ stock
+- **Auth:** ❌ Public
 
+**POST** `/api/checkout/cancel?sessionId={sessionId}` - Hủy checkout session
+- **Mô tả:** Release reservation
+- **Auth:** ❌ Public
+
+---
 
 #### **4. Order APIs (Đơn hàng)**
-| Endpoint | Method | Mô tả | Auth |
-|----------|--------|-------|------|
-| `/api/v1/orders/{orderId}` | GET | Tracking đơn hàng (PUBLIC) | ❌ |
-| `/api/v1/orders` | GET | Lấy danh sách tất cả đơn hàng (ADMIN) | ✅ API Key |
-| `/api/v1/orders/{orderId}/status` | PUT | Cập nhật trạng thái đơn hàng (ADMIN) | ✅ API Key |
 
-**Query params cho GET /api/v1/orders:**
-- `status` - Lọc theo trạng thái (PENDING, CONFIRMED, SHIPPING, DELIVERED, CANCELLED)
-- `page` - Số trang (default: 1)
-- `size` - Số items/trang (default: 20)
-- `sort` - Sắp xếp (ví dụ: `createdAt,desc`)
+**GET** `/api/v1/orders/{orderId}` - Tracking đơn hàng
+- **Mô tả:** PUBLIC - Khách hàng tracking đơn hàng
+- **Auth:** ❌ Public
 
+**GET** `/api/v1/orders` - Lấy danh sách tất cả đơn hàng (ADMIN)
+- **Auth:** ✅ **Yêu cầu API Key**
+- **Query params:**
+  - `status` - Lọc theo trạng thái (PENDING, CONFIRMED, SHIPPING, DELIVERED, CANCELLED)
+  - `page` - Số trang (default: 1)
+  - `size` - Số items/trang (default: 20)
+  - `sort` - Sắp xếp (ví dụ: `createdAt,desc`)
+
+**PUT** `/api/v1/orders/{orderId}/status` - Cập nhật trạng thái đơn hàng (ADMIN)
+- **Auth:** ✅ **Yêu cầu API Key**
+
+---
 
 #### **5. Webhook APIs (Payment callback)**
-| Endpoint | Method | Mô tả | Auth |
-|----------|--------|-------|------|
-| `/api/webhooks/sepay` | POST | Nhận callback từ SePay khi thanh toán | ❌ |
 
-**Lưu ý:** Webhook endpoint dùng signature để xác thực, không cần API key.
+**POST** `/api/webhooks/sepay` - Nhận callback từ SePay khi thanh toán
+- **Auth:** ❌ Public (dùng signature để xác thực)
+- **Lưu ý:** Webhook endpoint dùng HMAC signature để xác thực, không cần API key
 
 ---
 
