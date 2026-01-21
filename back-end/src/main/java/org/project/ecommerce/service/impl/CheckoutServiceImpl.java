@@ -90,7 +90,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         Instant expiresAt = Instant.now().plus(RESERVATION_EXPIRY_MINUTES, ChronoUnit.MINUTES);
         CheckoutSession session = CheckoutSession.builder()
                 .sessionId(sessionId)
-                .cartId(cartId)
+                .cart(cart)
                 .order(savedOrder)
                 .expiresAt(expiresAt)
                 .isCompleted(false)
@@ -169,8 +169,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         checkoutSessionRepository.save(session);
 
         // 7. Clear cart items sau khi checkout thành công
-        Cart cart = cartRepository.findById(session.getCartId())
-                .orElseThrow(() -> new CustomException("Cart không tồn tại", HttpStatus.NOT_FOUND.value()));
+        Cart cart = session.getCart();
         cart.getItems().clear();
         cartRepository.save(cart);
 

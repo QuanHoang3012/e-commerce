@@ -1,14 +1,25 @@
 package org.project.ecommerce.entities;
 
 
-import jakarta.persistence.*;
-import lombok.*;
-import org.project.ecommerce.base.BaseEntity;
-import org.project.ecommerce.constant.CartStatus;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import org.project.ecommerce.base.BaseEntity;
+import org.project.ecommerce.constant.CartStatus;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @AllArgsConstructor
@@ -31,4 +42,12 @@ public class Cart extends BaseEntity {
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CartItem> items;
+
+    /**
+     * Các checkout sessions được tạo từ cart này
+     * 1 Cart có thể có nhiều checkout sessions (user có thể checkout nhiều lần)
+     */
+    @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CheckoutSession> checkoutSessions;
+
 }

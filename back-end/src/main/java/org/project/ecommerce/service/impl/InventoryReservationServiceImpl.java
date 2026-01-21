@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.UUID;
 
 import org.project.ecommerce.constant.ReservationStatus;
+import org.project.ecommerce.entities.CheckoutSession;
 import org.project.ecommerce.entities.InventoryReservation;
 import org.project.ecommerce.entities.ProductVariant;
 import org.project.ecommerce.exception.CustomException;
+import org.project.ecommerce.repository.CheckoutSessionRepository;
 import org.project.ecommerce.repository.InventoryReservationRepository;
 import org.project.ecommerce.repository.ProductVariantRepository;
 import org.project.ecommerce.service.InventoryReservationService;
@@ -27,21 +29,26 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private final InventoryReservationRepository reservationRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final CheckoutSessionRepository checkoutSessionRepository;
 
     // Thời gian giữ hàng: 15 phút
-    private static final int RESERVATION_EXPIRY_MINUTES = 6;
+    private static final int RESERVATION_EXPIRY_MINUTES = 15;
 
     @Override
     @Transactional
-    public InventoryReservation reserveInventory(UUID variantId, Integer quantity, String cartId) {
+    public InventoryReservation reserveInventory(UUID variantId, Integer quantity, String sessionId) {
+        // 0. Tìm CheckoutSession entity
+        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new CustomException("Checkout session không tồn tại", HttpStatus.NOT_FOUND.value()));
+
         // 1. Lấy thông tin variant với PESSIMISTIC LOCK
         // 🔒 Lock row để tránh race condition khi nhiều người reserve cùng lúc
         ProductVariant variant = productVariantRepository.findByIdWithLock(variantId)
                 .orElseThrow(() -> new CustomException("Sản phẩm không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        // 2. Check xem cart này đã reserve variant này chưa
+        // 2. Check xem session này đã reserve variant này chưa
         var existingReservation = reservationRepository
-                .findByVariantAndCartIdAndStatus(variant, cartId, ReservationStatus.ACTIVE);
+                .findByVariantAndCheckoutSessionAndStatus(variant, session, ReservationStatus.ACTIVE);
 
         if (existingReservation.isPresent()) {
             // Nếu đã reserve rồi, update số lượng
@@ -60,8 +67,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             }
 
             reservation.setQuantity(newQuantity);
-            log.info("Updated reservation for cart {} - variant {} - quantity: {} → {}",
-                    cartId, variantId, currentReserved, newQuantity);
+            log.info("Updated reservation for session {} - variant {} - quantity: {} → {}",
+                    sessionId, variantId, currentReserved, newQuantity);
             return reservationRepository.save(reservation);
         }
 
@@ -77,13 +84,13 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         InventoryReservation reservation = InventoryReservation.builder()
                 .variant(variant)
                 .quantity(quantity)
-                .cartId(cartId)
+                .checkoutSession(session)
                 .status(ReservationStatus.ACTIVE)
                 .build();
 
         InventoryReservation saved = reservationRepository.save(reservation);
-        log.info("Created reservation for cart {} - variant {} - quantity: {}",
-                cartId, variantId, quantity);
+        log.info("Created reservation for session {} - variant {} - quantity: {}",
+                sessionId, variantId, quantity);
 
         return saved;
     }
@@ -108,12 +115,16 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     @Override
     @Transactional
-    public void releaseReservation(String cartId) {
+    public void releaseReservation(String sessionId) {
+        // Tìm CheckoutSession entity
+        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new CustomException("Checkout session không tồn tại", HttpStatus.NOT_FOUND.value()));
+
         List<InventoryReservation> reservations = reservationRepository
-                .findByCartIdAndStatus(cartId, ReservationStatus.ACTIVE);
+                .findByCheckoutSessionAndStatus(session, ReservationStatus.ACTIVE);
 
         if (reservations.isEmpty()) {
-            log.info("No active reservations found for cart {}", cartId);
+            log.info("No active reservations found for session {}", sessionId);
             return;
         }
 
@@ -121,14 +132,18 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         reservations.forEach(r -> r.setStatus(ReservationStatus.EXPIRED));
         reservationRepository.saveAll(reservations);
 
-        log.info("Released {} reservations for cart {}", reservations.size(), cartId);
+        log.info("Released {} reservations for session {}", reservations.size(), sessionId);
     }
 
     @Override
     @Transactional
-    public void completeReservation(String cartId) {
+    public void completeReservation(String sessionId) {
+        // Tìm CheckoutSession entity
+        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new CustomException("Checkout session không tồn tại", HttpStatus.NOT_FOUND.value()));
+
         List<InventoryReservation> reservations = reservationRepository
-                .findByCartIdAndStatus(cartId, ReservationStatus.ACTIVE);
+                .findByCheckoutSessionAndStatus(session, ReservationStatus.ACTIVE);
 
         if (reservations.isEmpty()) {
             throw new CustomException("Đơn hàng đã quá thời gian checkout", HttpStatus.NOT_FOUND.value());
@@ -157,7 +172,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         }
 
         reservationRepository.saveAll(reservations);
-        log.info("Completed {} reservations for cart {}", reservations.size(), cartId);
+        log.info("Completed {} reservations for session {}", reservations.size(), sessionId);
     }
 
     @Override

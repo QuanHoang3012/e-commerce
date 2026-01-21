@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.project.ecommerce.constant.ReservationStatus;
+import org.project.ecommerce.entities.CheckoutSession;
 import org.project.ecommerce.entities.InventoryReservation;
 import org.project.ecommerce.entities.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,15 +19,15 @@ import org.springframework.stereotype.Repository;
 public interface InventoryReservationRepository extends JpaRepository<InventoryReservation, UUID> {
 
     /**
-     * Tìm reservation đang ACTIVE của một cart cụ thể
+     * Tìm reservation đang ACTIVE của một checkout session cụ thể
      */
-    List<InventoryReservation> findByCartIdAndStatus(String cartId, ReservationStatus status);
+    List<InventoryReservation> findByCheckoutSessionAndStatus(CheckoutSession session, ReservationStatus status);
 
     /**
-     * Tìm reservation của một variant và cart cụ thể
+     * Tìm reservation của một variant và checkout session cụ thể
      */
-    Optional<InventoryReservation> findByVariantAndCartIdAndStatus(
-            ProductVariant variant, String cartId, ReservationStatus status);
+    Optional<InventoryReservation> findByVariantAndCheckoutSessionAndStatus(
+            ProductVariant variant, CheckoutSession session, ReservationStatus status);
 
     /**
      * Tính tổng số lượng đã được reserve cho một variant (chỉ ACTIVE)
