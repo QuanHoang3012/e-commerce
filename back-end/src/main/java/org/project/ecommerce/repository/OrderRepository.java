@@ -1,5 +1,7 @@
 package org.project.ecommerce.repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,4 +26,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      * Dùng cho warehouse staff filter đơn hàng
      */
     Page<Order> findByStatus(OrderStatus status, Pageable pageable);
+    
+    /**
+     * Tìm các order theo status và đã tạo trước thời điểm nào đó
+     * Dùng cho cleanup expired PENDING orders
+     */
+    List<Order> findByStatusAndCreatedAtBefore(OrderStatus status, Instant createdAt);
 }

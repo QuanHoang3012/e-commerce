@@ -6,13 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.project.ecommerce.constant.OrderStatus;
 import org.project.ecommerce.constant.ReservationStatus;
-import org.project.ecommerce.entities.CheckoutSession;
 import org.project.ecommerce.entities.InventoryReservation;
+import org.project.ecommerce.entities.Order;
 import org.project.ecommerce.entities.ProductVariant;
 import org.project.ecommerce.exception.CustomException;
-import org.project.ecommerce.repository.CheckoutSessionRepository;
 import org.project.ecommerce.repository.InventoryReservationRepository;
+import org.project.ecommerce.repository.OrderRepository;
 import org.project.ecommerce.repository.ProductVariantRepository;
 import org.project.ecommerce.service.InventoryReservationService;
 import org.springframework.http.HttpStatus;
@@ -29,36 +30,29 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private final InventoryReservationRepository reservationRepository;
     private final ProductVariantRepository productVariantRepository;
-    private final CheckoutSessionRepository checkoutSessionRepository;
+    private final OrderRepository orderRepository;
 
-    // Thời gian giữ hàng: 15 phút
     private static final int RESERVATION_EXPIRY_MINUTES = 15;
 
     @Override
     @Transactional
-    public InventoryReservation reserveInventory(UUID variantId, Integer quantity, String sessionId) {
-        // 0. Tìm CheckoutSession entity
-        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException("Checkout session không tồn tại", HttpStatus.NOT_FOUND.value()));
+    public InventoryReservation reserveInventory(UUID variantId, Integer quantity, UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Đơn hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        // 1. Lấy thông tin variant với PESSIMISTIC LOCK
-        // 🔒 Lock row để tránh race condition khi nhiều người reserve cùng lúc
         ProductVariant variant = productVariantRepository.findByIdWithLock(variantId)
                 .orElseThrow(() -> new CustomException("Sản phẩm không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        // 2. Check xem session này đã reserve variant này chưa
         var existingReservation = reservationRepository
-                .findByVariantAndCheckoutSessionAndStatus(variant, session, ReservationStatus.ACTIVE);
+                .findByVariantAndOrderAndStatus(variant, order, ReservationStatus.ACTIVE);
 
         if (existingReservation.isPresent()) {
-            // Nếu đã reserve rồi, update số lượng
             InventoryReservation reservation = existingReservation.get();
             int newQuantity = reservation.getQuantity() + quantity;
 
-            // Check available stock
             int available = getAvailableStock(variantId);
             int currentReserved = reservation.getQuantity();
-            int actualAvailable = available + currentReserved; // Cộng lại phần đã reserve của session này
+            int actualAvailable = available + currentReserved; // Cộng lại phần đã reserve của order này
 
             if (actualAvailable < newQuantity) {
                 throw new CustomException(
@@ -67,12 +61,11 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             }
 
             reservation.setQuantity(newQuantity);
-            log.info("Updated reservation for session {} - variant {} - quantity: {} → {}",
-                    sessionId, variantId, currentReserved, newQuantity);
+            log.info("Updated reservation for order {} - variant {} - quantity: {} → {}",
+                    orderId, variantId, currentReserved, newQuantity);
             return reservationRepository.save(reservation);
         }
 
-        // 3. Tạo reservation mới - Check available stock
         int available = getAvailableStock(variantId);
         if (available < quantity) {
             throw new CustomException(
@@ -80,32 +73,30 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     HttpStatus.BAD_REQUEST.value());
         }
 
-        // 4. Tạo reservation
         InventoryReservation reservation = InventoryReservation.builder()
                 .variant(variant)
                 .quantity(quantity)
-                .checkoutSession(session)
+                .order(order)
                 .status(ReservationStatus.ACTIVE)
                 .build();
 
         InventoryReservation saved = reservationRepository.save(reservation);
-        log.info("Created reservation for session {} - variant {} - quantity: {}",
-                sessionId, variantId, quantity);
+        log.info("Created reservation for order {} - variant {} - quantity: {}",
+                orderId, variantId, quantity);
 
         return saved;
     }
 
     @Override
     @Transactional
-    public List<InventoryReservation> reserveMultipleItems(List<ReservationItem> items, String cartId) {
+    public List<InventoryReservation> reserveMultipleItems(List<ReservationItem> items, UUID orderId) {
         List<InventoryReservation> reservations = new ArrayList<>();
 
-        // Reserve từng item một
         for (ReservationItem item : items) {
             InventoryReservation reservation = reserveInventory(
                     item.variantId(),
                     item.quantity(),
-                    cartId
+                    orderId
             );
             reservations.add(reservation);
         }
@@ -115,50 +106,58 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     @Override
     @Transactional
-    public void releaseReservation(String sessionId) {
-        // Tìm CheckoutSession entity
-        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException("Checkout session không tồn tại", HttpStatus.NOT_FOUND.value()));
+    public void releaseReservation(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Đơn hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
 
         List<InventoryReservation> reservations = reservationRepository
-                .findByCheckoutSessionAndStatus(session, ReservationStatus.ACTIVE);
+                .findByOrderAndStatus(order, ReservationStatus.ACTIVE);
 
         if (reservations.isEmpty()) {
-            log.info("No active reservations found for session {}", sessionId);
+            log.info("No active reservations found for order {}", orderId);
             return;
         }
 
-        // Update status → EXPIRED
         reservations.forEach(r -> r.setStatus(ReservationStatus.EXPIRED));
         reservationRepository.saveAll(reservations);
 
-        log.info("Released {} reservations for session {}", reservations.size(), sessionId);
+        log.info("Released {} reservations for order {}", reservations.size(), orderId);
     }
 
     @Override
     @Transactional
-    public void completeReservation(String sessionId) {
-        // Tìm CheckoutSession entity
-        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException("Checkout session không tồn tại", HttpStatus.NOT_FOUND.value()));
+    public void deleteReservationsByOrder(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Đơn hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
+
+        List<InventoryReservation> reservations = reservationRepository.findByOrder(order);
+
+        if (!reservations.isEmpty()) {
+            reservationRepository.deleteAll(reservations);
+            log.info("Deleted {} reservations for order {}", reservations.size(), orderId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void completeReservation(UUID orderId) {
+        // Tìm Order entity
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Đơn hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
 
         List<InventoryReservation> reservations = reservationRepository
-                .findByCheckoutSessionAndStatus(session, ReservationStatus.ACTIVE);
+                .findByOrderAndStatus(order, ReservationStatus.ACTIVE);
 
         if (reservations.isEmpty()) {
             throw new CustomException("Đơn hàng đã quá thời gian checkout", HttpStatus.NOT_FOUND.value());
         }
 
-        // Update status → COMPLETED và trừ stock thật sự
         for (InventoryReservation reservation : reservations) {
-            // 🔒 Lock variant khi trừ stock để tránh race condition
             ProductVariant variant = productVariantRepository.findByIdWithLock(reservation.getVariant().getId())
                     .orElseThrow(() -> new CustomException("Sản phẩm không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-            // Trừ stock quantity
             int newStock = variant.getStockQuantity() - reservation.getQuantity();
             if (newStock < 0) {
-                // Không nên xảy ra nếu logic đúng, nhưng để safety check
                 throw new CustomException(
                         "Lỗi hệ thống: Không đủ hàng để hoàn tất đơn",
                         HttpStatus.INTERNAL_SERVER_ERROR.value());
@@ -167,12 +166,11 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             variant.setStockQuantity(newStock);
             productVariantRepository.save(variant);
 
-            // Update reservation status
             reservation.setStatus(ReservationStatus.COMPLETED);
         }
 
         reservationRepository.saveAll(reservations);
-        log.info("Completed {} reservations for session {}", reservations.size(), sessionId);
+        log.info("Completed {} reservations for order {}", reservations.size(), orderId);
     }
 
     @Override
@@ -181,19 +179,16 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         ProductVariant variant = productVariantRepository.findById(variantId)
                 .orElseThrow(() -> new CustomException("Sản phẩm không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        // Tính số lượng đã được reserve (ACTIVE)
         Integer reservedQuantity = reservationRepository.sumReservedQuantityByVariantId(variantId);
 
-        // Available = Physical Stock - Reserved
         int available = variant.getStockQuantity() - (reservedQuantity != null ? reservedQuantity : 0);
 
-        return Math.max(0, available); // Không trả về số âm
+        return Math.max(0, available);
     }
 
     @Override
     @Transactional
     public int releaseExpiredReservations() {
-        // Tính thời điểm hết hạn = hiện tại - 15 phút
         Instant expiryTime = Instant.now().minus(RESERVATION_EXPIRY_MINUTES, ChronoUnit.MINUTES);
 
         int count = reservationRepository.expireReservationsByTime(expiryTime);
@@ -208,7 +203,6 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     @Override
     @Transactional
     public int cleanupOldReservations() {
-        // Xóa các reservation đã EXPIRED/COMPLETED và cũ hơn 24 giờ
         Instant cleanupTime = Instant.now().minus(24, ChronoUnit.HOURS);
         
         reservationRepository.cleanupOldReservations(cleanupTime);
@@ -217,4 +211,5 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         
         return 0;
     }
+
 }

@@ -1,0 +1,71 @@
+@use '@shared/styles/variables' as *;
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: $color-white;
+  border-bottom: 1px solid $color-border;
+  height: $header-height;
+
+  &__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+  }
+
+  &__logo {
+    font-size: $font-size-xl;
+    font-weight: 800;
+    color: $primary-color;
+    letter-spacing: -0.5px;
+  }
+
+  &__nav {
+    display: flex;
+    gap: $spacing-lg;
+  }
+
+  &__nav-link {
+    font-size: $font-size-sm;
+    font-weight: 500;
+    color: $color-text-secondary;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: $primary-color;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+  }
+
+  &__cart {
+    position: relative;
+    font-size: 22px;
+    padding: $spacing-sm;
+    display: flex;
+    align-items: center;
+  }
+
+  &__cart-badge {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    background: $color-danger;
+    color: $color-white;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+}

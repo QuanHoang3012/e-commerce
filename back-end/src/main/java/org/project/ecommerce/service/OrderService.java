@@ -12,7 +12,14 @@ import org.springframework.data.domain.Pageable;
  * Service xử lý đơn hàng
  */
 public interface OrderService {
-
+    /**
+     * Cleanup các orders đã hết hạn (status=PENDING và createdAt > 15 phút)
+     * → Release reservations
+     * → Xóa orders
+     *
+     * @return Số lượng orders đã cleanup
+     */
+    int cleanupExpiredOrders();
     /**
      * Tracking đơn hàng bằng order ID (PUBLIC - không cần auth)
      * 

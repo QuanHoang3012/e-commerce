@@ -1,6 +1,7 @@
 package org.project.ecommerce.service.impl;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -17,6 +18,7 @@ import org.project.ecommerce.entities.Order;
 import org.project.ecommerce.entities.OrderItem;
 import org.project.ecommerce.exception.CustomException;
 import org.project.ecommerce.repository.OrderRepository;
+import org.project.ecommerce.service.InventoryReservationService;
 import org.project.ecommerce.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -33,7 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
-
+    private final InventoryReservationService reservationService;
+    private static final int RESERVATION_EXPIRY_MINUTES = 15;
     @Override
     @Transactional(readOnly = true)
     public OrderTrackingResponse trackOrderById(UUID orderId) {
@@ -62,6 +65,37 @@ public class OrderServiceImpl implements OrderService {
         Page<OrderListResponse> dtoPage = orderPage.map(this::buildOrderListResponse);
 
         return PageDTO.from(dtoPage);
+    }
+
+    @Override
+    @Transactional
+    public int cleanupExpiredOrders() {
+        // Tìm các order PENDING đã hết hạn (> 15 phút)
+        Instant expiryTime = Instant.now().minus(RESERVATION_EXPIRY_MINUTES, ChronoUnit.MINUTES);
+
+        List<Order> expiredOrders = orderRepository.findByStatusAndCreatedAtBefore(
+                OrderStatus.PENDING, expiryTime);
+
+        if (expiredOrders.isEmpty()) {
+            return 0;
+        }
+
+        int count = 0;
+        for (Order order : expiredOrders) {
+            try {
+                // XÓA reservation TRƯỚC khi xóa order
+                reservationService.deleteReservationsByOrder(order.getId());
+
+                // Xóa order
+                orderRepository.delete(order);
+                count++;
+            } catch (Exception e) {
+                log.error("Error cleaning up expired order {}", order.getId(), e);
+            }
+        }
+
+        log.info("Cleaned up {} expired orders (PENDING)", count);
+        return count;
     }
 
     @Override

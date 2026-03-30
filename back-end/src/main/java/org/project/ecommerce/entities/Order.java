@@ -21,6 +21,14 @@ public class Order extends BaseEntity {
     @Column(name = "tracking_number", unique = true)
     private String trackingNumber;
 
+    /**
+     * Link đến cart để snapshot items khi tạo order
+     * Dùng khi status = PENDING (checkout chưa hoàn tất)
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cart_id")
+    private Cart cart;
+
     @Column(name = "customer_name")
     private String customerName;
 
