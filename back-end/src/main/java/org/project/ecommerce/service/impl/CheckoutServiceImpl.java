@@ -13,12 +13,10 @@ import org.project.ecommerce.dto.request.CheckoutRequest;
 import org.project.ecommerce.dto.response.CheckoutResponse;
 import org.project.ecommerce.entities.Cart;
 import org.project.ecommerce.entities.CartItem;
-import org.project.ecommerce.entities.CheckoutSession;
 import org.project.ecommerce.entities.Order;
 import org.project.ecommerce.entities.OrderItem;
 import org.project.ecommerce.exception.CustomException;
 import org.project.ecommerce.repository.CartRepository;
-import org.project.ecommerce.repository.CheckoutSessionRepository;
 import org.project.ecommerce.repository.OrderRepository;
 import org.project.ecommerce.service.CheckoutService;
 import org.project.ecommerce.service.EmailService;
@@ -38,7 +36,6 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     private final CartRepository cartRepository;
     private final OrderRepository orderRepository;
-    private final CheckoutSessionRepository checkoutSessionRepository;
     private final InventoryReservationService reservationService;
     private final EmailService emailService;
 
@@ -55,22 +52,21 @@ public class CheckoutServiceImpl implements CheckoutService {
             throw new CustomException("Giỏ hàng trống", HttpStatus.BAD_REQUEST.value());
         }
 
-        // 2. Gen sessionId mới (độc lập với cartId)
-        String sessionId = UUID.randomUUID().toString();
-
-        // 3. Tạo Order ngay với snapshot data từ cart
+        // 2. Tính tổng tiền
         BigDecimal totalAmount = cart.getItems().stream()
                 .map(item -> item.getVariant().getPrice()
                         .multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // 3. Tạo Order với status=PENDING, chưa có thông tin khách hàng
         Order order = Order.builder()
+                .cart(cart)  // Link cart để snapshot items
                 .totalAmount(totalAmount)
                 .status(OrderStatus.PENDING)
                 .items(new ArrayList<>())
                 .build();
 
-        // Copy cart items sang order items (snapshot)
+        // 4. Copy cart items sang order items (snapshot data)
         for (CartItem cartItem : cart.getItems()) {
             BigDecimal itemSubtotal = cartItem.getVariant().getPrice()
                     .multiply(BigDecimal.valueOf(cartItem.getQuantity()));
@@ -86,18 +82,7 @@ public class CheckoutServiceImpl implements CheckoutService {
 
         Order savedOrder = orderRepository.save(order);
 
-        // 4. Tạo CheckoutSession để track
-        Instant expiresAt = Instant.now().plus(RESERVATION_EXPIRY_MINUTES, ChronoUnit.MINUTES);
-        CheckoutSession session = CheckoutSession.builder()
-                .sessionId(sessionId)
-                .cart(cart)
-                .order(savedOrder)
-                .expiresAt(expiresAt)
-                .isCompleted(false)
-                .build();
-        checkoutSessionRepository.save(session);
-
-        // 5. Reserve inventory dựa trên ORDER ITEMS với sessionId mới
+        // 5. Reserve inventory dựa trên ORDER ITEMS
         List<InventoryReservationService.ReservationItem> reservationItems = savedOrder.getItems().stream()
                 .map(item -> new InventoryReservationService.ReservationItem(
                         item.getVariant().getId(),
@@ -105,10 +90,9 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .collect(Collectors.toList());
 
         try {
-            reservationService.reserveMultipleItems(reservationItems, sessionId);
+            reservationService.reserveMultipleItems(reservationItems, savedOrder.getId());
         } catch (CustomException e) {
-            // Rollback: xóa session và order
-            checkoutSessionRepository.delete(session);
+            // Rollback: xóa order
             orderRepository.delete(savedOrder);
 
             throw new CustomException(
@@ -116,11 +100,14 @@ public class CheckoutServiceImpl implements CheckoutService {
                     HttpStatus.BAD_REQUEST.value());
         }
 
-        log.info("Checkout initiated - Session {} - Cart {} - Order {} - {} items - total {}",
-                sessionId, cartId, savedOrder.getId(), savedOrder.getItems().size(), totalAmount);
+        log.info("Checkout initiated - Order {} - Cart {} - {} items - total {}",
+                savedOrder.getId(), cartId, savedOrder.getItems().size(), totalAmount);
+
+        // Tính expires time
+        Instant expiresAt = Instant.now().plus(RESERVATION_EXPIRY_MINUTES, ChronoUnit.MINUTES);
 
         return CheckoutResponse.builder()
-                .sessionId(sessionId)
+                .orderId(savedOrder.getId())
                 .reservedUntil(expiresAt)
                 .totalItems(savedOrder.getItems().size())
                 .totalAmount(totalAmount)
@@ -131,55 +118,64 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     @Override
     @Transactional
-    public CheckoutResponse confirmCheckout(String sessionId, CheckoutRequest request) {
-        // 1. Lấy checkout session
-        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException("Session không tồn tại", HttpStatus.NOT_FOUND.value()));
+    public CheckoutResponse confirmCheckout(UUID orderId, CheckoutRequest request) {
+        // 1. Lấy order
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Đơn hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        if (Boolean.TRUE.equals(session.getIsCompleted())) {
-            throw new CustomException("Session đã được sử dụng", HttpStatus.BAD_REQUEST.value());
+        // 2. Validate status PENDING
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new CustomException("Đơn hàng đã được xác nhận", HttpStatus.BAD_REQUEST.value());
         }
 
-        // 2. Lấy Order đã tạo sẵn từ session
-        Order order = session.getOrder();
+        // 3. Validate thời gian (không quá 15 phút)
+        Instant expiryTime = order.getCreatedAt().plus(RESERVATION_EXPIRY_MINUTES, ChronoUnit.MINUTES);
+        if (Instant.now().isAfter(expiryTime)) {
+            // XÓA reservation TRƯỚC khi xóa order
+            try {
+                reservationService.deleteReservationsByOrder(orderId);
+            } catch (Exception e) {
+                log.warn("Error deleting reservation for expired order {}", orderId, e);
+            }
+            orderRepository.delete(order);
+            throw new CustomException("Đơn hàng đã hết hạn", HttpStatus.BAD_REQUEST.value());
+        }
 
-        // 3. Cập nhật thông tin khách hàng vào Order
+        // 4. Cập nhật thông tin khách hàng
         order.setCustomerName(request.getCustomerName());
         order.setCustomerPhone(request.getCustomerPhone());
         order.setCustomerEmail(request.getCustomerEmail());
         order.setShippingAddress(request.getShippingAddress());
         order.setPaymentMethod(request.getPaymentMethod());
 
-        // 4. Xác định trạng thái theo payment method
+        // 5. Xác định trạng thái theo payment method
         OrderStatus finalStatus = OrderUtils.determineInitialStatus(request.getPaymentMethod());
         order.setStatus(finalStatus);
 
-        // 5. Complete reservation → Trừ stock thật sự
+        // 6. Complete reservation → Trừ stock thật sự
         try {
-            reservationService.completeReservation(sessionId);
+            reservationService.completeReservation(orderId);
         } catch (CustomException e) {
             throw new CustomException(
                     "Lỗi khi hoàn tất đơn hàng: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
 
-        // 6. Lưu Order và đánh dấu session completed
+        // 7. Lưu Order
         Order savedOrder = orderRepository.save(order);
-        session.setIsCompleted(true);
-        checkoutSessionRepository.save(session);
 
-        // 7. Clear cart items sau khi checkout thành công
-        Cart cart = session.getCart();
+        // 8. Clear cart items sau khi checkout thành công
+        Cart cart = order.getCart();
         cart.getItems().clear();
         cartRepository.save(cart);
 
-        log.info("Order confirmed - Session {} - Order ID: {} - Total: {} - Payment: {} - Cart cleared",
-                sessionId, savedOrder.getId(), savedOrder.getTotalAmount(), request.getPaymentMethod());
+        log.info("Order confirmed - Order ID: {} - Total: {} - Payment: {} - Cart cleared",
+                savedOrder.getId(), savedOrder.getTotalAmount(), request.getPaymentMethod());
 
-        // 8. Gửi email xác nhận
+        // 9. Gửi email xác nhận
         emailService.sendOrderConfirmation(savedOrder);
 
-        // 9. Tạo message phù hợp với payment method
+        // 10. Tạo message phù hợp với payment method
         String message = OrderUtils.buildSuccessMessage(savedOrder, request.getPaymentMethod());
 
         return CheckoutResponse.builder()
@@ -191,24 +187,28 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     @Override
     @Transactional
-    public void cancelCheckout(String sessionId) {
-        // Lấy session và validate
-        CheckoutSession session = checkoutSessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new CustomException("Session không tồn tại", HttpStatus.NOT_FOUND.value()));
+    public void cancelCheckout(UUID orderId) {
+        // Lấy order
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Đơn hàng không tồn tại", HttpStatus.NOT_FOUND.value()));
 
-        if (Boolean.TRUE.equals(session.getIsCompleted())) {
-            throw new CustomException("Session đã hoàn tất, không thể hủy", HttpStatus.BAD_REQUEST.value());
+        // Validate status PENDING
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new CustomException("Đơn hàng đã hoàn tất, không thể hủy", HttpStatus.BAD_REQUEST.value());
         }
 
-        // Release reservation
-        reservationService.releaseReservation(sessionId);
-
-        // Xóa order và session
-        if (session.getOrder() != null) {
-            orderRepository.delete(session.getOrder());
+        // XÓA reservation TRƯỚC khi xóa order
+        try {
+            reservationService.deleteReservationsByOrder(orderId);
+        } catch (Exception e) {
+            log.warn("Error deleting reservation for order {}", orderId, e);
         }
-        checkoutSessionRepository.delete(session);
 
-        log.info("Checkout cancelled for session {}", sessionId);
+        // Xóa order
+        orderRepository.delete(order);
+
+        log.info("Checkout cancelled for order {}", orderId);
     }
+
+
 }

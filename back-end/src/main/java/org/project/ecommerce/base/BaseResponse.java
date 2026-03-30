@@ -9,6 +9,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -21,6 +22,7 @@ public class BaseResponse<T> {
     private int code;
     private String message;
     private T data;
+    private Map<String, String> errors;
 
     private static String getCurrentPath(){
         RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
@@ -41,13 +43,18 @@ public class BaseResponse<T> {
                 .build();
     }
 
-    public static <T> BaseResponse<T> failure(String message, int code){
-        return BaseResponse.<T>builder().
-                timestamp(Instant.now()).
-                path(getCurrentPath())
-                .success(false).
-                code(code).
-                message(message).
-                build();
+    public static <T> BaseResponse<T> failure(String message, int code) {
+        return failure(message, code, null);
+    }
+
+    public static <T> BaseResponse<T> failure(String message, int code, Map<String, String> errors) {
+        return BaseResponse.<T>builder()
+                .timestamp(Instant.now())
+                .path(getCurrentPath())
+                .success(false)
+                .code(code)
+                .message(message)
+                .errors(errors)
+                .build();
     }
 }

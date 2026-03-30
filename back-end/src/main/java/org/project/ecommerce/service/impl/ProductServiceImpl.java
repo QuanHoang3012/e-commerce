@@ -77,12 +77,10 @@ public class ProductServiceImpl implements ProductService {
             minPrice = priceRange.getMinPrice();
             maxPrice = priceRange.getMaxPrice();
         } else {
-            // Fallback: Nếu không có biến thể, lấy giá mặc định của Product cha
             minPrice = product.getMinPrice();
             maxPrice = product.getMinPrice();
         }
 
-        // 3. Truyền giá trị vào Mapper
         return productMapper.toDetailResponse(product, minPrice, maxPrice);
     }
 }

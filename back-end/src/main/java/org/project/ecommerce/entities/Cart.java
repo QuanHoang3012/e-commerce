@@ -44,10 +44,10 @@ public class Cart extends BaseEntity {
     private List<CartItem> items;
 
     /**
-     * Các checkout sessions được tạo từ cart này
-     * 1 Cart có thể có nhiều checkout sessions (user có thể checkout nhiều lần)
+     * Các orders được tạo từ cart này
+     * 1 Cart có thể có nhiều orders (user có thể checkout nhiều lần)
      */
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CheckoutSession> checkoutSessions;
+    private List<Order> orders;
 
 }

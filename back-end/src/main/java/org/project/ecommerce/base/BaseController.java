@@ -5,8 +5,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 //import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public abstract class BaseController {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass());
@@ -14,6 +20,16 @@ public abstract class BaseController {
     protected <T> BaseResponse<T> wrapSuccess(T data){
         return BaseResponse.success(data);
     }
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<BaseResponse<Object>> handleValidationException(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+            errors.put(fieldError.getField(), fieldError.getDefaultMessage());
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(BaseResponse.failure("Dữ liệu không hợp lệ", HttpStatus.BAD_REQUEST.value(), errors));
+    }
+
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<BaseResponse<Object>> handleCustomException(CustomException ex){
         return ResponseEntity.status(ex.getStatus())
@@ -35,10 +51,10 @@ public abstract class BaseController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(BaseResponse.failure(ex.getMessage(), HttpStatus.BAD_REQUEST.value()));
     }
 
-//    @ExceptionHandler(AuthorizationDeniedException.class)
-//    public ResponseEntity<BaseResponse<Object>> handleAuthorizationException(AuthorizationDeniedException ex){
-//        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BaseResponse.failure(ex.getMessage(), HttpStatus.FORBIDDEN.value()));
-//    }
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<BaseResponse<Object>> handleAuthorizationException(AuthorizationDeniedException ex){
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BaseResponse.failure(ex.getMessage(), HttpStatus.FORBIDDEN.value()));
+    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BaseResponse<Object>> handleException(Exception ex) {

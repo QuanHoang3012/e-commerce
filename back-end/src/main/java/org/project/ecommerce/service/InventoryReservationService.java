@@ -17,39 +17,47 @@ public interface InventoryReservationService {
      *
      * @param variantId   ID của product variant cần giữ
      * @param quantity    Số lượng cần giữ
-     * @param cartId      Cart ID từ cookie
+     * @param orderId     Order ID
      * @return InventoryReservation đã tạo
      * @throws CustomException nếu không đủ hàng
      */
-    InventoryReservation reserveInventory(UUID variantId, Integer quantity, String cartId);
+    InventoryReservation reserveInventory(UUID variantId, Integer quantity, UUID orderId);
 
     /**
      * Giữ hàng cho nhiều variants cùng lúc (bulk reserve)
      * Sử dụng khi checkout cả giỏ hàng
      *
      * @param items     List các item cần reserve (variantId, quantity)
-     * @param cartId    Cart ID từ cookie
+     * @param orderId   Order ID
      * @return List các reservation đã tạo
      */
-    List<InventoryReservation> reserveMultipleItems(List<ReservationItem> items, String cartId);
+    List<InventoryReservation> reserveMultipleItems(List<ReservationItem> items, UUID orderId);
 
     /**
      * Release (nhả) hàng đã giữ khi:
      * - Khách không thanh toán trong 15 phút
      * - Khách cancel đơn
      *
-     * @param cartId Cart ID cần release
+     * @param orderId Order ID cần release
      */
-    void releaseReservation(String cartId);
+    void releaseReservation(UUID orderId);
+
+    /**
+     * Xóa các reservation của một order
+     * Dùng khi cancel checkout hoặc cleanup expired orders
+     *
+     * @param orderId Order ID cần xóa reservations
+     */
+    void deleteReservationsByOrder(UUID orderId);
 
     /**
      * Complete reservation khi thanh toán thành công
      * Cập nhật status từ ACTIVE → COMPLETED
      * Trừ stock_quantity thật sự
      *
-     * @param cartId Cart ID
+     * @param orderId Order ID
      */
-    void completeReservation(String sessionId);
+    void completeReservation(UUID orderId);
 
     /**
      * Check số lượng hàng THỰC SỰ có thể bán

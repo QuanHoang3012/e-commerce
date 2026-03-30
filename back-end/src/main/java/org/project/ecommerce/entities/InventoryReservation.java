@@ -23,7 +23,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "inventory_reservations", indexes = {
-    @Index(name = "idx_session_status", columnList = "session_id, status"),
+    @Index(name = "idx_order_status", columnList = "order_id, status"),
     @Index(name = "idx_variant_status", columnList = "variant_id, status")
 })
 @Builder
@@ -38,12 +38,11 @@ public class InventoryReservation extends BaseEntity {
     private Integer quantity;
 
     /**
-     * Liên kết với CheckoutSession - mỗi reservation thuộc về một checkout session
-     * Sử dụng sessionId (String) làm FK thay vì ID (UUID)
+     * Liên kết với Order - mỗi reservation thuộc về một order
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "session_id", referencedColumnName = "session_id", nullable = false)
-    private CheckoutSession checkoutSession;
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
 
     @Enumerated(EnumType.STRING)
     private ReservationStatus status;

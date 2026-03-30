@@ -15,13 +15,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CheckoutResponse {
 
-    // Bước 1: Initiate Checkout
-    private String sessionId;
+    // Bước 1 & 2: Đều trả về Order ID
+    private UUID orderId;
+    
+    // Bước 1: Thông tin reservation
     private Instant reservedUntil;
     private Integer totalItems;
     private BigDecimal totalAmount;
 
-    // Bước 2: Confirm Checkout → Trả về Order
-    private UUID orderId;
+    // Bước 2: Confirm Checkout message
     private String message;
 }

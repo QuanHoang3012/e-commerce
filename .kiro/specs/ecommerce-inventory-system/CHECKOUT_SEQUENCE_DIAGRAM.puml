@@ -1,0 +1,213 @@
+@startuml Checkout Flow with Inventory Reservation
+
+title Checkout Flow với Inventory Reservation & Race Condition Prevention
+
+actor Guest
+participant "CheckoutController" as Controller
+participant "CheckoutService" as Service
+participant "InventoryReservationService" as ReservationService
+participant "ProductVariantRepository" as VariantRepo
+database "Database\n(PostgreSQL)" as DB
+participant "OrderService" as OrderService
+participant "EmailService" as EmailService
+
+== Phase 1: Initiate Checkout & Reserve Inventory ==
+
+Guest -> Controller: POST /api/checkout/initiate?cartId={uuid}
+activate Controller
+
+Controller -> Service: initiateCheckout(cartId)
+activate Service
+
+Service -> Service: Validate cart exists\nand has items
+
+Service -> ReservationService: reserveInventory(cartItems)
+activate ReservationService
+
+note over ReservationService, DB
+  **Race Condition Prevention**
+  Sử dụng Pessimistic Locking
+  để xử lý concurrent requests
+end note
+
+loop For each cart item
+    ReservationService -> VariantRepo: findByIdWithLock(variantId)
+    activate VariantRepo
+    
+    VariantRepo -> DB: SELECT * FROM product_variants\nWHERE id = ?\n**FOR UPDATE** (Row Lock)
+    activate DB
+    
+    note right of DB
+      **Pessimistic Lock Acquired**
+      Transaction holds lock until commit
+      Other transactions wait here
+    end note
+    
+    DB --> VariantRepo: Locked ProductVariant
+    deactivate DB
+    
+    VariantRepo --> ReservationService: ProductVariant (locked)
+    deactivate VariantRepo
+    
+    ReservationService -> ReservationService: Calculate Available Stock\n= PhysicalStock - ActiveReservations
+    
+    alt Stock Available
+        ReservationService -> DB: INSERT INTO inventory_reservation\n(session_id, variant_id, quantity,\nstatus='ACTIVE', expires_at=NOW()+15min)
+        activate DB
+        DB --> ReservationService: Reservation Created
+        deactivate DB
+        
+        note right of ReservationService
+          Reservation expires in 15 minutes
+          Status: ACTIVE
+        end note
+        
+    else Insufficient Stock
+        ReservationService -> DB: ROLLBACK TRANSACTION
+        activate DB
+        DB --> ReservationService: Transaction Rolled Back
+        deactivate DB
+        
+        ReservationService --> Service: throw InsufficientStockException
+        Service --> Controller: Error Response
+        Controller --> Guest: 400 Bad Request\n{"error": "Insufficient stock",\n"unavailableItems": [...]}
+        
+        note right of Guest
+          Checkout failed
+          Show error to user
+        end note
+        
+        deactivate ReservationService
+        deactivate Service
+        deactivate Controller
+        
+        [<-- Guest: End (Failure)
+    end
+end
+
+ReservationService -> DB: COMMIT TRANSACTION
+activate DB
+
+note right of DB
+  **Lock Released**
+  Other waiting transactions
+  can now proceed
+end note
+
+DB --> ReservationService: Transaction Committed
+deactivate DB
+
+ReservationService --> Service: Reservations Created\n(sessionId, expiresAt)
+deactivate ReservationService
+
+Service --> Controller: CheckoutSessionResponse\n(sessionId, expiresAt)
+deactivate Service
+
+Controller --> Guest: 200 OK\n{"sessionId": "uuid",\n"expiresAt": "timestamp"}
+deactivate Controller
+
+note right of Guest
+  Guest has 15 minutes
+  to complete checkout
+end note
+
+== Phase 2: Guest Fills Shipping Info ==
+
+Guest -> Guest: Fill shipping information\n(name, phone, email, address)\nSelect payment method\n(COD or Bank Transfer)
+
+== Phase 3: Confirm Checkout & Create Order ==
+
+Guest -> Controller: POST /api/checkout/confirm?sessionId={id}\nBody: {customerInfo, paymentMethod}
+activate Controller
+
+Controller -> Service: confirmCheckout(sessionId, checkoutRequest)
+activate Service
+
+Service -> Service: Validate session exists\nand not expired
+
+Service -> OrderService: createOrder(session, checkoutRequest)
+activate OrderService
+
+OrderService -> DB: BEGIN TRANSACTION
+activate DB
+
+OrderService -> DB: INSERT INTO orders\n(tracking_number, customer_info,\ntotal_amount, payment_method,\nstatus='PENDING')
+DB --> OrderService: Order Created
+
+OrderService -> DB: INSERT INTO order_items\n(order_id, variant_id, quantity,\nprice_at_purchase)
+DB --> OrderService: Order Items Created
+
+OrderService -> VariantRepo: Deduct Physical Stock
+activate VariantRepo
+
+VariantRepo -> DB: UPDATE product_variants\nSET physical_stock = physical_stock - quantity\nWHERE id = ?
+DB --> VariantRepo: Stock Updated
+deactivate VariantRepo
+
+OrderService -> ReservationService: Mark Reservations as COMPLETED
+activate ReservationService
+
+ReservationService -> DB: UPDATE inventory_reservation\nSET status = 'COMPLETED'\nWHERE session_id = ?
+DB --> ReservationService: Reservations Completed
+deactivate ReservationService
+
+OrderService -> DB: COMMIT TRANSACTION
+DB --> OrderService: Transaction Committed
+deactivate DB
+
+note right of OrderService
+  Order created successfully
+  Stock deducted
+  Reservations completed
+end note
+
+OrderService -> EmailService: sendOrderConfirmation(order)
+activate EmailService
+
+EmailService -> Guest: Email: Order Confirmation\nTracking Number: {uuid}\nTracking URL: {baseUrl}/track/{uuid}
+deactivate EmailService
+
+OrderService --> Service: Order
+deactivate OrderService
+
+Service -> Service: Mark cart as CONVERTED
+
+Service --> Controller: OrderResponse\n(orderId, trackingNumber)
+deactivate Service
+
+Controller --> Guest: 200 OK\n{"orderId": "uuid",\n"trackingNumber": "uuid",\n"status": "PENDING"}
+deactivate Controller
+
+note right of Guest
+  Checkout completed
+  Order created
+  Email sent
+end note
+
+== Alternative Flow: Reservation Expires ==
+
+... 15 minutes later ...
+
+participant "ScheduledJob" as Scheduler
+
+Scheduler -> ReservationService: cleanupExpiredReservations()
+activate Scheduler
+activate ReservationService
+
+ReservationService -> DB: UPDATE inventory_reservation\nSET status = 'EXPIRED'\nWHERE created_at < NOW() - INTERVAL '15 minutes'\nAND status = 'ACTIVE'
+activate DB
+
+DB --> ReservationService: X reservations expired
+deactivate DB
+
+ReservationService --> Scheduler: Cleanup completed
+deactivate ReservationService
+deactivate Scheduler
+
+note right of Scheduler
+  Expired reservations
+  no longer count toward
+  available stock calculation
+end note
+
+@enduml

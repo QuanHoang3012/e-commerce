@@ -33,12 +33,12 @@ public class CheckoutController extends BaseController {
     /**
      * Bước 1: Khách hàng bấm "Thanh toán" từ giỏ hàng
      * POST /api/checkout/initiate?cartId={cartId}
-     * → Reserve inventory, giữ hàng trong 15 phút
+     * → Tạo Order PENDING, reserve inventory trong 15 phút
      *
      * Response:
      * {
-     *   "sessionId": "...",
-     *   "reservedUntil": "2026-01-14T10:15:00Z",
+     *   "orderId": "...",
+     *   "reservedUntil": "2026-01-21T10:15:00Z",
      *   "totalItems": 3,
      *   "totalAmount": 1500000
      * }
@@ -56,9 +56,9 @@ public class CheckoutController extends BaseController {
 
     /**
      * Bước 2: Khách hàng điền thông tin và xác nhận thanh toán
-     * POST /api/checkout/confirm?sessionId={sessionId}
+     * POST /api/checkout/confirm?orderId={orderId}
      * Body: { customerName, customerPhone, customerEmail, shippingAddress, paymentMethod }
-     * → Complete reservation, tạo Order, trừ stock
+     * → Update Order (PENDING → CONFIRMED), complete reservation, trừ stock
      *
      * Response:
      * {
@@ -69,28 +69,28 @@ public class CheckoutController extends BaseController {
      */
     @PostMapping("/confirm")
     public BaseResponse<CheckoutResponse> confirmCheckout(
-            @RequestParam String sessionId,
+            @RequestParam UUID orderId,
             @Valid @RequestBody CheckoutRequest request
     ) {
-        log.info("Confirming checkout for session {}", sessionId);
+        log.info("Confirming checkout for order {}", orderId);
 
-        CheckoutResponse response = checkoutService.confirmCheckout(sessionId, request);
+        CheckoutResponse response = checkoutService.confirmCheckout(orderId, request);
 
         return wrapSuccess(response);
     }
 
     /**
      * Khách hàng cancel checkout
-     * POST /api/checkout/cancel?sessionId={sessionId}
-     * → Release reservation
+     * POST /api/checkout/cancel?orderId={orderId}
+     * → Release reservation, xóa Order PENDING
      */
     @PostMapping("/cancel")
     public BaseResponse<Void> cancelCheckout(
-            @RequestParam String sessionId
+            @RequestParam UUID orderId
     ) {
-        log.info("Cancelling checkout for session {}", sessionId);
+        log.info("Cancelling checkout for order {}", orderId);
 
-        checkoutService.cancelCheckout(sessionId);
+        checkoutService.cancelCheckout(orderId);
 
         return wrapSuccess(null);
     }

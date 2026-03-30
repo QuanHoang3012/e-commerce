@@ -1,0 +1,628 @@
+{
+  "info": {
+    "_postman_id": "ecommerce-api-collection",
+    "name": "E-Commerce API Collection",
+    "description": "Complete API collection for E-Commerce backend with environment variables and tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Product APIs",
+      "item": [
+        {
+          "name": "Get Products (List)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success field\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "// Save first product ID for next requests",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.content && jsonData.data.content.length > 0) {",
+                  "    pm.environment.set(\"product_id\", jsonData.data.content[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/products?page=1&size=12&category=ao-nam&sort=createdAt,desc",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "size",
+                  "value": "12",
+                  "description": "Items per page (default: 12)"
+                },
+                {
+                  "key": "category",
+                  "value": "ao-nam",
+                  "description": "Category slug (optional)"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "",
+                  "description": "Minimum price (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "",
+                  "description": "Maximum price (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt,desc",
+                  "description": "Sort field and direction"
+                }
+              ]
+            },
+            "description": "Get paginated product list with optional filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Product has variants\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('variants');",
+                  "    ",
+                  "    // Save first variant ID",
+                  "    if (jsonData.data.variants && jsonData.data.variants.length > 0) {",
+                  "        pm.environment.set(\"variant_id\", jsonData.data.variants[0].id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "products", "{{product_id}}"]
+            },
+            "description": "Get product details with SKU, variants, images"
+          },
+          "response": []
+        }
+      ],
+      "description": "Public product catalog APIs"
+    },
+    {
+      "name": "2. Cart APIs",
+      "item": [
+        {
+          "name": "Get Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Get CART_ID from cookie",
+                  "var cartCookie = pm.cookies.get('CART_ID');",
+                  "if (cartCookie) {",
+                  "    pm.environment.set(\"cart_id\", cartCookie);",
+                  "    console.log(\"Cart ID from cookie: \" + cartCookie);",
+                  "}",
+                  "",
+                  "// Also save from response as backup",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.cartId) {",
+                  "    pm.environment.set(\"cart_id\", jsonData.data.cartId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/cart",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "cart"]
+            },
+            "description": "Get current cart (uses CART_ID cookie)"
+          },
+          "response": []
+        },
+        {
+          "name": "Add to Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Get CART_ID from cookie (primary method)",
+                  "var cartCookie = pm.cookies.get('CART_ID');",
+                  "if (cartCookie) {",
+                  "    pm.environment.set(\"cart_id\", cartCookie);",
+                  "    console.log(\"Cart ID from cookie: \" + cartCookie);",
+                  "}",
+                  "",
+                  "// Save cart ID and first item ID from response",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data) {",
+                  "    if (!cartCookie && jsonData.data.cartId) {",
+                  "        pm.environment.set(\"cart_id\", jsonData.data.cartId);",
+                  "    }",
+                  "    ",
+                  "    if (jsonData.data.items && jsonData.data.items.length > 0) {",
+                  "        pm.environment.set(\"item_id\", jsonData.data.items[0].itemId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"variantId\": \"{{variant_id}}\",\n    \"quantity\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/cart/items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "cart", "items"]
+            },
+            "description": "Add product variant to cart"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Cart Item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"cartId\": \"{{cart_id}}\",\n    \"itemId\": \"{{item_id}}\",\n    \"quantity\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/cart/items/{{item_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "cart", "items", "{{item_id}}"]
+            },
+            "description": "Update item quantity in cart"
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Cart Item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/cart/items/{{item_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "cart", "items", "{{item_id}}"]
+            },
+            "description": "Remove item from cart"
+          },
+          "response": []
+        }
+      ],
+      "description": "Cart management APIs (Cookie-based)"
+    },
+    {
+      "name": "3. Checkout APIs",
+      "item": [
+        {
+          "name": "Initiate Checkout",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Ensure cart_id is available from cookies",
+                  "var cartCookie = pm.cookies.get('CART_ID');",
+                  "if (cartCookie) {",
+                  "    pm.environment.set(\"cart_id\", cartCookie);",
+                  "    console.log(\"Using Cart ID from cookie: \" + cartCookie);",
+                  "} else {",
+                  "    console.log(\"Using Cart ID from environment: \" + pm.environment.get(\"cart_id\"));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Save session ID for confirm step",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.sessionId) {",
+                  "    pm.environment.set(\"session_id\", jsonData.data.sessionId);",
+                  "    console.log(\"Session ID saved: \" + jsonData.data.sessionId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/checkout/initiate?cartId={{cart_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "checkout", "initiate"],
+              "query": [
+                {
+                  "key": "cartId",
+                  "value": "{{cart_id}}",
+                  "description": "Cart ID to checkout"
+                }
+              ]
+            },
+            "description": "Step 1: Reserve inventory (15 minutes)"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Save order ID for tracking",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.orderId) {",
+                  "    pm.environment.set(\"order_id\", jsonData.data.orderId);",
+                  "    console.log(\"Order ID saved: \" + jsonData.data.orderId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"customerName\": \"Nguyễn Văn A\",\n    \"customerPhone\": \"0901234567\",\n    \"customerEmail\": \"customer@example.com\",\n    \"shippingAddress\": \"123 Đường ABC, Quận 1, TP.HCM\",\n    \"paymentMethod\": \"COD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/checkout/confirm?sessionId={{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "checkout", "confirm"],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "{{session_id}}",
+                  "description": "Checkout session ID"
+                }
+              ]
+            },
+            "description": "Step 2: Confirm and create order"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/checkout/cancel?sessionId={{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "checkout", "cancel"],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "{{session_id}}",
+                  "description": "Checkout session ID to cancel"
+                }
+              ]
+            },
+            "description": "Cancel checkout and release reservation"
+          },
+          "response": []
+        }
+      ],
+      "description": "Checkout flow with inventory reservation"
+    },
+    {
+      "name": "4. Order APIs (Public)",
+      "item": [
+        {
+          "name": "Track Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Order has status\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('status');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/orders/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "orders", "{{order_id}}"]
+            },
+            "description": "PUBLIC - Customer can track order by ID"
+          },
+          "response": []
+        }
+      ],
+      "description": "Public order tracking"
+    },
+    {
+      "name": "5. Admin APIs (Require API Key)",
+      "item": [
+        {
+          "name": "Get All Orders (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has pagination\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('totalPages');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Key",
+                "value": "{{admin_api_key}}",
+                "type": "text",
+                "description": "Admin API Key (Required)"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/orders?status=PENDING&page=1&size=20&sort=createdAt,desc",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "orders"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "description": "Filter by status (optional)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt,desc",
+                  "description": "Sort order"
+                }
+              ]
+            },
+            "description": "ADMIN - Get all orders with filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Order Status (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Order status updated\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('status');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Admin-Key",
+                "value": "{{admin_api_key}}",
+                "type": "text",
+                "description": "Admin API Key (Required)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"SHIPPING\",\n    \"note\": \"Đã giao cho shipper\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/orders/{{order_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "orders", "{{order_id}}", "status"]
+            },
+            "description": "ADMIN - Update order status (PENDING, CONFIRMED, SHIPPING, DELIVERED, CANCELLED)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Admin-only APIs requiring X-Admin-Key header"
+    },
+    {
+      "name": "6. Webhook APIs",
+      "item": [
+        {
+          "name": "SePay Webhook (Simulate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"transactionId\": \"TX123456789\",\n    \"amount\": 1500000,\n    \"content\": \"ORDER-ID-HERE\",\n    \"timestamp\": \"2026-01-19T10:30:00Z\",\n    \"bankCode\": \"MB\",\n    \"senderName\": \"NGUYEN VAN A\",\n    \"signature\": \"base64-encoded-hmac\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/webhooks/sepay",
+              "host": ["{{base_url}}"],
+              "path": ["api", "webhooks", "sepay"]
+            },
+            "description": "Simulate SePay payment webhook (for testing)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Payment gateway webhooks"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "api_version",
+      "value": "v1"
+    }
+  ]
+}
